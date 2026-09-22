@@ -12,9 +12,9 @@ const colours = [
   { id: 'rose', name: 'Lotus Rose', hex: '#B94861', filter: 'hue-rotate(340deg) saturate(.58) brightness(1.08)' },
 ];
 const motifs = [
-  { id: 'manga', label: 'Manga Butti', asset: '/assets/motif-manga.png' },
-  { id: 'dot', label: 'Zari Dot', asset: '/assets/motif-dot.png' },
-  { id: 'lotus', label: 'Lotus Bloom', asset: '/assets/motif-lotus.png' },
+  { id: 'manga', label: 'Manga Butti', asset: '/assets/motif-manga.png', detailAsset: '/assets/motif-manga-detail.png' },
+  { id: 'dot', label: 'Zari Dot', asset: '/assets/motif-dot.png', detailAsset: '/assets/motif-dot-detail.png' },
+  { id: 'lotus', label: 'Lotus Bloom', asset: '/assets/motif-lotus.png', detailAsset: '/assets/motif-lotus-detail.png' },
 ];
 const borders = [
   { id: 'elephant', label: 'Royal Elephant', asset: '/assets/border-elephant.png' },
@@ -174,7 +174,7 @@ function CustomerApp({ design, update, reset }) {
               <div className="choice-grid">{motifs.map((item) => <ChoiceCard key={item.id} item={item} selected={motif.id === item.id} onClick={() => update({ motif: item.id, previewMode: 'full' })} type="motif" />)}</div>
               <div className="motif-detail-actions">
                 <button className={`motif-detail-card ${detailMode ? 'active' : ''}`} onClick={() => update({ previewMode: 'detail' })} aria-pressed={detailMode}>
-                  <span className="motif-detail-art" style={{ '--motif-image': `url(${motif.asset})` }} />
+                  <span className="motif-detail-art"><img src={motif.detailAsset} alt="" /></span>
                   <span><Eye size={18} /> {detailMode ? 'Showing motif detail' : 'View motif detail'}</span>
                 </button>
                 {detailMode && <button className="return-saree" onClick={() => update({ previewMode: 'full' })}>Return to saree</button>}
@@ -200,7 +200,9 @@ function LiveApp({ design }) {
   if (detailMode) {
     return (
       <main className="mapping-output live-detail-view" style={{ '--live-colour': colour.hex }}>
-        <div className="live-detail-piece" style={{ '--motif-image': `url(${motif.asset})` }} role="img" aria-label={`${motif.label} motif detail`} />
+        <div className="live-detail-piece" role="img" aria-label={`${motif.label} motif detail`}>
+          <img src={motif.detailAsset} alt="" />
+        </div>
       </main>
     );
   }
