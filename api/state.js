@@ -6,6 +6,7 @@ const allowed = {
   colour: new Set(['red', 'maroon', 'blue', 'emerald', 'midnight', 'rose']),
   motif: new Set(['manga', 'dot', 'lotus']),
   border: new Set(['elephant', 'mayil', 'temple']),
+  previewMode: new Set(['full', 'detail']),
 };
 
 let nativeRedisPromise;
@@ -74,7 +75,7 @@ export default async function handler(request, response) {
 
   if (request.method === 'POST') {
     const body = typeof request.body === 'string' ? JSON.parse(request.body) : request.body;
-    if (!body || !allowed.colour.has(body.colour) || !allowed.motif.has(body.motif) || !allowed.border.has(body.border)) {
+    if (!body || !allowed.colour.has(body.colour) || !allowed.motif.has(body.motif) || !allowed.border.has(body.border) || !allowed.previewMode.has(body.previewMode)) {
       return response.status(400).json({ error: 'Invalid saree state.' });
     }
 
@@ -82,6 +83,7 @@ export default async function handler(request, response) {
       colour: body.colour,
       motif: body.motif,
       border: body.border,
+      previewMode: body.previewMode,
       updatedAt: Number(body.updatedAt) || Date.now(),
     };
     await writeState(redis, state);

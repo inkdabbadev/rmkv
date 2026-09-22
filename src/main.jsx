@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Check, ChevronDown, Heart, RotateCcw, Share2 } from 'lucide-react';
+import { Check, ChevronDown, Eye, Heart, RotateCcw, Share2 } from 'lucide-react';
 import './styles.css';
 
 const colours = [
@@ -21,24 +21,28 @@ const borders = [
   { id: 'mayil', label: 'Mayil', asset: '/assets/border-mayil.png' },
   { id: 'temple', label: 'Temple', asset: '/assets/border-temple.png' },
 ];
-const defaultDesign = { colour: 'red', motif: 'manga', border: 'elephant', updatedAt: 0 };
+const defaultDesign = { colour: 'red', motif: 'manga', border: 'elephant', previewMode: 'full', updatedAt: 0 };
 const STORAGE_KEY = 'rmkv-live-design-v1';
+
+function normalizeDesign(value = {}) {
+  return { ...defaultDesign, ...value, previewMode: value.previewMode === 'detail' ? 'detail' : 'full' };
+}
 
 function useSharedDesign() {
   const channel = useRef(null);
   const [design, setDesign] = useState(() => {
-    try { return { ...defaultDesign, ...JSON.parse(localStorage.getItem(STORAGE_KEY)) }; }
+    try { return normalizeDesign(JSON.parse(localStorage.getItem(STORAGE_KEY))); }
     catch { return defaultDesign; }
   });
 
   useEffect(() => {
     const onStorage = (event) => {
-      if (event.key === STORAGE_KEY && event.newValue) setDesign({ ...defaultDesign, ...JSON.parse(event.newValue) });
+      if (event.key === STORAGE_KEY && event.newValue) setDesign(normalizeDesign(JSON.parse(event.newValue)));
     };
     window.addEventListener('storage', onStorage);
     if ('BroadcastChannel' in window) {
       channel.current = new BroadcastChannel('rmkv-live-design');
-      channel.current.onmessage = (event) => setDesign({ ...defaultDesign, ...event.data });
+      channel.current.onmessage = (event) => setDesign(normalizeDesign(event.data));
     }
 
     let pollTimer;
@@ -51,7 +55,7 @@ function useSharedDesign() {
         if (stopped || !remote?.updatedAt) return;
         setDesign((current) => {
           if (remote.updatedAt <= (current.updatedAt || 0)) return current;
-          const next = { ...defaultDesign, ...remote };
+          const next = normalizeDesign(remote);
           localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
           return next;
         });
@@ -127,7 +131,12 @@ function CustomerApp({ design, update, reset }) {
   const [step, setStep] = useState('colour');
   const progress = { colour: 34, motif: 67, border: 100 }[step];
   const selection = useMemo(() => `${colour.name} / ${motif.label} / ${border.label}`, [colour, motif, border]);
+  const detailMode = design.previewMode === 'detail';
   const resetAll = () => { reset(); setStep('colour'); setSaved(false); };
+  const openStep = (nextStep) => {
+    setStep(nextStep);
+    if (nextStep === 'border' && detailMode) update({ previewMode: 'full' });
+  };
   const share = async () => {
     const data = { title: 'My RMKV Saree', text: selection, url: location.href };
     if (navigator.share) await navigator.share(data);
@@ -156,16 +165,25 @@ function CustomerApp({ design, update, reset }) {
           <div className="step-header"><span>Craft your saree</span><strong>{Math.round(progress / 33.4)} of 3</strong></div>
           <div className="progress"><span style={{ width: `${progress}%` }} /></div>
           <section className={`control-section ${step === 'colour' ? 'open' : ''}`}>
-            <button className="section-title" onClick={() => setStep('colour')}><span><i>01</i> Silk colour</span><ChevronDown size={19} /></button>
+            <button className="section-title" onClick={() => openStep('colour')}><span><i>01</i> Silk colour</span><ChevronDown size={19} /></button>
             <div className="section-body"><h2>{colour.name}</h2><div className="swatches">{colours.map((item) => <button key={item.id} className={`swatch ${colour.id === item.id ? 'active' : ''}`} style={{ '--swatch': item.hex }} onClick={() => update({ colour: item.id })} aria-label={item.name}>{colour.id === item.id && <Check size={16} />}</button>)}</div></div>
           </section>
           <section className={`control-section ${step === 'motif' ? 'open' : ''}`}>
-            <button className="section-title" onClick={() => setStep('motif')}><span><i>02</i> Body motif</span><ChevronDown size={19} /></button>
-            <div className="section-body"><div className="choice-grid">{motifs.map((item) => <ChoiceCard key={item.id} item={item} selected={motif.id === item.id} onClick={() => update({ motif: item.id })} type="motif" />)}</div></div>
+            <button className="section-title" onClick={() => openStep('motif')}><span><i>02</i> Body motif</span><ChevronDown size={19} /></button>
+            <div className="section-body">
+              <div className="choice-grid">{motifs.map((item) => <ChoiceCard key={item.id} item={item} selected={motif.id === item.id} onClick={() => update({ motif: item.id, previewMode: 'full' })} type="motif" />)}</div>
+              <div className="motif-detail-actions">
+                <button className={`motif-detail-card ${detailMode ? 'active' : ''}`} onClick={() => update({ previewMode: 'detail' })} aria-pressed={detailMode}>
+                  <span className="motif-detail-art" style={{ '--motif-image': `url(${motif.asset})` }} />
+                  <span><Eye size={18} /> {detailMode ? 'Showing motif detail' : 'View motif detail'}</span>
+                </button>
+                {detailMode && <button className="return-saree" onClick={() => update({ previewMode: 'full' })}>Return to saree</button>}
+              </div>
+            </div>
           </section>
           <section className={`control-section ${step === 'border' ? 'open' : ''}`}>
-            <button className="section-title" onClick={() => setStep('border')}><span><i>03</i> Zari border</span><ChevronDown size={19} /></button>
-            <div className="section-body"><div className="choice-grid">{borders.map((item) => <ChoiceCard key={item.id} item={item} selected={border.id === item.id} onClick={() => update({ border: item.id })} type="border" />)}</div></div>
+            <button className="section-title" onClick={() => openStep('border')}><span><i>03</i> Zari border</span><ChevronDown size={19} /></button>
+            <div className="section-body"><div className="choice-grid">{borders.map((item) => <ChoiceCard key={item.id} item={item} selected={border.id === item.id} onClick={() => update({ border: item.id, previewMode: 'full' })} type="border" />)}</div></div>
           </section>
           <button className="primary-button" onClick={() => setSaved(true)}>{saved ? <><Check size={19} /> Design saved</> : 'Complete my saree'}</button>
           <p className="craft-note">Every selection is woven into a singular RMKV design.</p>
@@ -177,6 +195,16 @@ function CustomerApp({ design, update, reset }) {
 
 function LiveApp({ design }) {
   const { colour, motif, border } = getActive(design);
+  const detailMode = design.previewMode === 'detail';
+
+  if (detailMode) {
+    return (
+      <main className="mapping-output live-detail-view" style={{ '--live-colour': colour.hex }}>
+        <div className="live-detail-piece" style={{ '--motif-image': `url(${motif.asset})` }} role="img" aria-label={`${motif.label} motif detail`} />
+      </main>
+    );
+  }
+
   return (
     <main className="mapping-output live-fabric" style={{ '--live-colour': colour.hex }}>
       <img className="live-motif-layer" src={motif.asset} alt="" />
