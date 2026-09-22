@@ -21,7 +21,7 @@ const borders = [
   { id: 'mayil', label: 'Mayil', asset: '/assets/border-mayil.png' },
   { id: 'temple', label: 'Temple', asset: '/assets/border-temple.png' },
 ];
-const defaultDesign = { colour: 'red', motif: 'manga', border: 'elephant' };
+const defaultDesign = { colour: 'red', motif: 'manga', border: 'elephant', updatedAt: 0 };
 const STORAGE_KEY = 'rmkv-live-design-v1';
 
 function useSharedDesign() {
@@ -40,14 +40,51 @@ function useSharedDesign() {
       channel.current = new BroadcastChannel('rmkv-live-design');
       channel.current.onmessage = (event) => setDesign({ ...defaultDesign, ...event.data });
     }
-    return () => { window.removeEventListener('storage', onStorage); channel.current?.close(); };
+
+    let pollTimer;
+    let stopped = false;
+    const pullRemoteState = async () => {
+      try {
+        const response = await fetch('/api/state', { cache: 'no-store' });
+        if (!response.ok) return;
+        const remote = await response.json();
+        if (stopped || !remote?.updatedAt) return;
+        setDesign((current) => {
+          if (remote.updatedAt <= (current.updatedAt || 0)) return current;
+          const next = { ...defaultDesign, ...remote };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          return next;
+        });
+      } catch {
+        // Local state remains available when the remote store is not configured.
+      }
+    };
+
+    if (import.meta.env.PROD) {
+      pullRemoteState();
+      pollTimer = window.setInterval(pullRemoteState, 900);
+    }
+
+    return () => {
+      stopped = true;
+      window.removeEventListener('storage', onStorage);
+      channel.current?.close();
+      if (pollTimer) window.clearInterval(pollTimer);
+    };
   }, []);
 
   const update = (patch) => {
     setDesign((current) => {
-      const next = { ...current, ...patch };
+      const next = { ...current, ...patch, updatedAt: Date.now() };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       channel.current?.postMessage(next);
+      if (import.meta.env.PROD) {
+        fetch('/api/state', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(next),
+        }).catch(() => {});
+      }
       return next;
     });
   };
